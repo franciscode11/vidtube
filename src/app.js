@@ -40,7 +40,13 @@ app.use(
 );
 
 //Routes
+import healthCheckRouter from "./routes/healthcheck.routes.js";
+app.use("/api/v1/healthcheck", healthCheckRouter);
+
 import userRouter from "./routes/users.routes.js";
 app.use("/api/v1/users", userRouter);
+
+import videoRouter from "./routes/videos.routes.js";
+app.use("/api/v1/videos", videoRouter);
 
 export { app };
