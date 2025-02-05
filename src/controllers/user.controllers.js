@@ -65,35 +65,33 @@ const singUpUser = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Avatar file is required");
   }
 
-  let avatar;
-  try {
-    avatar = await uploadToCloudinary(
-      avatarLocalPath,
-      process.env.CLOUDINARY_AVATAR_FOLDER_NAME,
-      "image"
-    );
-  } catch (error) {
+  const avatar = await uploadToCloudinary(
+    avatarLocalPath,
+    process.env.CLOUDINARY_AVATAR_FOLDER_NAME,
+    "image"
+  );
+
+  if (!avatar) {
     if (coverImageLocalPath) fs.unlinkSync(coverImageLocalPath);
     throw new ApiError(500, "Error uploading avatar image to Cloudinary");
   }
 
   let coverImage;
   if (coverImageLocalPath) {
-    try {
-      coverImage = await uploadToCloudinary(
-        coverImageLocalPath,
-        process.env.CLOUDINARY_COVERIMAGE_FOLDER_NAME,
-        "image"
-      );
-    } catch (error) {
-      try {
-        const response = await deleteOfCloudinary(avatar.public_id);
-        console.log("avatar image deleted from cloudinary", response);
-      } catch (error) {
+    coverImage = await uploadToCloudinary(
+      coverImageLocalPath,
+      process.env.CLOUDINARY_COVERIMAGE_FOLDER_NAME,
+      "image"
+    );
+    if (!coverImage) {
+      const response = await deleteOfCloudinary(avatar.public_id);
+      if (!response) {
         console.log(
           "Error deleting avatar image of cloudinary",
           avatar.public_id
         );
+      } else {
+        console.log("avatar image deleted from cloudinary", response);
       }
       throw new ApiError(500, "Error uploading coverImage to cloudinary");
     }
@@ -115,22 +113,21 @@ const singUpUser = asyncHandler(async (req, res) => {
     );
 
     if (!createdUser) {
-      try {
-        const avatarResponse = await deleteOfCloudinary(avatar.public_id);
-
-        let coverImageResponse;
-        if (coverImage) {
-          coverImageResponse = await deleteOfCloudinary(coverImage.public_id);
-        }
-
+      const avatarResponse = await deleteOfCloudinary(avatar.public_id);
+      if (!avatarResponse)
         console.log(
-          "userFailedCreation images,  deleted from cloudinary :",
-          avatarResponse,
-          coverImageResponse
+          `Error deleting avatar with publicId: ${avatar.public_id} from Cloudinary`
         );
-      } catch (error) {
-        console.log("Error deleting userFailedCreation images: ", error);
+
+      let coverImageResponse;
+      if (coverImage) {
+        coverImageResponse = await deleteOfCloudinary(coverImage.public_id);
       }
+
+      if (!coverImageResponse)
+        console.log(
+          `Error deleting coverImage with publicId: ${coverImage.public_id} from Cloudinary`
+        );
 
       throw new ApiError(
         500,
@@ -143,21 +140,22 @@ const singUpUser = asyncHandler(async (req, res) => {
       .status(200)
       .json(new ApiResponse(200, createdUser, "User registered succesfully"));
   } catch (error) {
-    try {
-      const avatarResponse = await deleteOfCloudinary(avatar.public_id);
-
-      let coverImageResponse;
-      if (coverImage) {
-        coverImageResponse = await deleteOfCloudinary(coverImage.public_id);
-      }
+    const avatarResponse = await deleteOfCloudinary(avatar.public_id);
+    if (!avatarResponse)
       console.log(
-        "userFailedCreation images,  deleted from cloudinary :",
-        avatarResponse,
-        coverImageResponse
+        `Error deleting avatar with publicId: ${avatar.public_id} from Cloudinary`
       );
-    } catch (error) {
-      console.log("Error deleting userFailedCreation images: ", error);
+
+    let coverImageResponse;
+    if (coverImage) {
+      coverImageResponse = await deleteOfCloudinary(coverImage.public_id);
     }
+
+    if (!coverImageResponse)
+      console.log(
+        `Error deleting coverImage with publicId: ${coverImage.public_id} from Cloudinary`
+      );
+
     throw new ApiError(500, "Something went wrong while registering the user");
   }
 });
@@ -485,41 +483,41 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
   const publicId = match ? match[1] : null;
 
   if (publicId === null) {
+    if (newAvatarLocalPath) fs.unlinkSync(newAvatarLocalPath);
     throw new ApiError(500, "Image PublicId not found");
   }
 
-  try {
-    const response = await deleteOfCloudinary(publicId);
-    console.log("Old avatar image deleted from cloudinary", response);
-  } catch (error) {
+  const response = await deleteOfCloudinary(publicId);
+
+  if (!response) {
     if (newAvatarLocalPath) fs.unlinkSync(newAvatarLocalPath);
+    console.log(
+      `Error deleting the old avatar image with publicId: ${publicId} of cloudinary`
+    );
     throw new ApiError(
       500,
-      "Error deleting the old avatar image from cloudinary"
+      "Error deleting the old avatar image of Cloudinary"
     );
+  } else {
+    console.log("Old avatar image deleted of Cloudinary", response);
   }
 
-  let newAvatarImage;
-  try {
-    newAvatarImage = await uploadToCloudinary(
-      newAvatarLocalPath,
-      process.env.CLOUDINARY_AVATAR_FOLDER_NAME,
-      "image"
-    );
-  } catch (error) {
-    if (newAvatarLocalPath) fs.unlinkSync(newAvatarLocalPath);
+  const newAvatarImage = await uploadToCloudinary(
+    newAvatarLocalPath,
+    process.env.CLOUDINARY_AVATAR_FOLDER_NAME,
+    "image"
+  );
+
+  if (!newAvatarImage) {
     throw new ApiError(
       500,
       "Error uploading the new avatar image to cloudinary"
     );
+  } else {
+    console.log("New avatar image uploaded successfully on Cloudinary");
   }
 
-  if (!newAvatarImage?.url) {
-    if (newAvatarLocalPath) fs.unlinkSync(newAvatarLocalPath);
-    throw new ApiError(500, "Error uploading the new avatar image");
-  }
-
-  user.avatar = newAvatarImage?.url;
+  user.avatar = newAvatarImage.url;
   await user.save({ validateBeforeSave: false });
 
   return res.status(200).json(
@@ -554,45 +552,55 @@ const uploadUserCoverImage = asyncHandler(async (req, res) => {
     const match = url.match(regex);
     const publicId = match ? match[1] : null;
 
-    try {
-      const response = await deleteOfCloudinary(publicId);
-      console.log("Old coverImage deleted of cloudinary", response);
-    } catch (error) {
+    if (!publicId) {
       if (newCoverImageLocalPath) fs.unlinkSync(newCoverImageLocalPath);
-      throw new ApiError(500, "Error deleting old coverImage of cloudinary");
+      throw new ApiError(500, `Error getting the old image publicId`);
+    }
+
+    const response = await deleteOfCloudinary(publicId);
+    if (!response) {
+      if (newCoverImageLocalPath) fs.unlinkSync(newCoverImageLocalPath);
+
+      console.log(
+        `Error deleting the old coverImage with publicId: ${publicId} of Cloudinary`
+      );
+
+      throw new ApiError(
+        500,
+        `Error deleting the old coverImage of Cloudinary`
+      );
+    } else {
+      console.log("Old coverImage deleted of cloudinary", response);
     }
   }
 
   //upload new image to cloudinary
-  let newCoverImage;
-  try {
-    newCoverImage = await uploadToCloudinary(
-      newCoverImageLocalPath,
-      process.env.CLOUDINARY_COVERIMAGE_FOLDER_NAME,
-      "image"
-    );
-  } catch (error) {
-    if (newCoverImageLocalPath) fs.unlinkSync(newCoverImageLocalPath);
-    throw new ApiError(500, "Error uploading new coverImage to cloudinary");
+  const newCoverImage = await uploadToCloudinary(
+    newCoverImageLocalPath,
+    process.env.CLOUDINARY_COVERIMAGE_FOLDER_NAME,
+    "image"
+  );
+  if (!newCoverImage) {
+    console.log("Error uploading the new coverImage on Cloudinary");
+    throw new ApiError(500, "Error uploading new coverImage on Cloudinary");
+  } else {
+    console.log("New coverImage uploaded on Cloudinary successfully");
   }
 
-  if (!newCoverImage?.url) {
-    if (newCoverImageLocalPath) fs.unlinkSync(newCoverImageLocalPath);
-    throw new ApiError(500, "Error uploading the coverImage");
-  }
-
-  user.coverImage = newCoverImage?.url;
+  user.coverImage = newCoverImage.url;
   await user.save({ validateBeforeSave: false });
 
-  return res.status(200).json(new ApiResponse(
-    200,
-    {
-      user: {
-        coverImage: user.coverImage,
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        user: {
+          coverImage: user.coverImage,
+        },
       },
-    },
-    "CoverImage updated successfully"
-  ));
+      "CoverImage updated successfully"
+    )
+  );
 });
 
 //Do the other controllers and then come her to put this pipeline on the mongoDB web to understand it. Then export it and use it

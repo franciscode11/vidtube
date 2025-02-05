@@ -1,5 +1,5 @@
-import fs from "fs";
 import { v2 as cloudinary } from "cloudinary";
+import fs from "fs";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -8,12 +8,11 @@ cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
-  secure: true,
 });
 
 const uploadToCloudinary = async (localFilePath, folder, resourceType) => {
   try {
-    if (!localFilePath) return null;
+    if (!localFilePath) null;
     const response = await cloudinary.uploader.upload(localFilePath, {
       folder: folder,
       resource_type: resourceType,
@@ -27,13 +26,13 @@ const uploadToCloudinary = async (localFilePath, folder, resourceType) => {
     return null;
   }
 };
+
 const deleteOfCloudinary = async (publicId) => {
   try {
     if (!publicId) return null;
     const response = await cloudinary.uploader.destroy(publicId);
     return response;
   } catch (error) {
-    console.error("Error deleting file from Cloudinary: ", error);
     return null;
   }
 };
