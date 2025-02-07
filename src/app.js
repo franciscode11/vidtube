@@ -49,7 +49,13 @@ app.use("/api/v1/users", userRouter);
 import videoRouter from "./routes/videos.routes.js";
 app.use("/api/v1/videos", videoRouter);
 
-import tweetRouter from "./routes/tweet.routes.js";
+import tweetRouter from "./routes/tweets.routes.js";
 app.use("/api/v1/tweets", tweetRouter);
+
+import commentRouter from "./routes/comments.routes.js";
+app.use("/api/v1/comments", commentRouter);
+
+import likeRouter from "./routes/likes.routes.js";
+app.use("/api/v1/likes", likeRouter);
 
 export { app };

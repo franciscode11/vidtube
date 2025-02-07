@@ -3,6 +3,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { Tweet } from "../models/tweet.models.js";
 import { User } from "../models/user.models.js";
+import { Like } from "../models/like.models.js";
 
 const createTweet = asyncHandler(async (req, res) => {
   const { content } = req.body;
@@ -76,4 +77,19 @@ const deleteTweet = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, {}, "Tweet deleted successfully"));
 });
 
-export { createTweet, getAllTweets, deleteTweet };
+const getTweetLikes = asyncHandler(async (req, res) => {
+  const { tweetId } = req.query;
+  if (!tweetId) throw new ApiError(400, "tweetId query is required");
+  const tweet = await Tweet.findById(tweetId);
+  if (!tweet) throw new ApiError(404, "tweet not found");
+
+  const likes = await Like.countDocuments({
+    tweet: tweet._id,
+  });
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, { likes }, "tweet likes served successfully"));
+});
+
+export { createTweet, getAllTweets, deleteTweet, getTweetLikes };
