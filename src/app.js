@@ -60,4 +60,8 @@ app.use("/api/v1/likes", likeRouter);
 
 import playlistRouter from "./routes/playlists.routes.js";
 app.use("/api/v1/playlists", playlistRouter);
+
+import subscriptionRouter from "./routes/subscriptions.routes.js";
+app.use("/api/v1/subscriptions", subscriptionRouter);
+
 export { app };
