@@ -58,4 +58,6 @@ app.use("/api/v1/comments", commentRouter);
 import likeRouter from "./routes/likes.routes.js";
 app.use("/api/v1/likes", likeRouter);
 
+import playlistRouter from "./routes/playlists.routes.js";
+app.use("/api/v1/playlists", playlistRouter);
 export { app };

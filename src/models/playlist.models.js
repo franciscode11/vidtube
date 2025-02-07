@@ -11,16 +11,23 @@ const playlistSchema = new Schema(
     owner: {
       type: Schema.Types.ObjectId,
       ref: "User",
+      required: true,
     },
     name: {
       type: String,
       required: true,
       index: true,
+      trim: true
     },
     description: {
       type: String,
-      required: true,
       trim: true,
+    },
+    visibility: {
+      type: String,
+      enum: ["Public", "Private", "Unlisted"],
+      default: "Private",
+      required: true,
     },
   },
   {
