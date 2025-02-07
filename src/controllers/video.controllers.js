@@ -4,7 +4,9 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { User } from "../models/user.models.js";
 import { Video } from "../models/video.models.js";
+import { Comment } from "../models/comment.models.js";
 import { uploadToCloudinary, deleteOfCloudinary } from "../utils/cloudinary.js";
+import { Like } from "../models/like.models.js";
 
 const createNewVideo = asyncHandler(async (req, res) => {
   const videoLocalPath = req.files?.video?.[0]?.path;
@@ -294,6 +296,37 @@ const getAllPublishedVideos = asyncHandler(async (req, res) => {
   );
 });
 
+const getVideoComments = asyncHandler(async (req, res) => {
+  const { videoId } = req.query;
+  if (!videoId) throw new ApiError(400, "videoId query is required");
+
+  const video = await Video.findById(videoId);
+  if (!video || !video.isPublished) throw new ApiError(404, "video not found");
+
+  //find all the comments where video: videoId
+  const comments = await Comment.find({ video: video._id });
+  let message = "All comments of this video";
+  if (comments.length === 0) {
+    message = "No comments yet. Be the first";
+  }
+  return res.status(200).json(new ApiResponse(200, { comments }, message));
+});
+
+const getVideoLikes = asyncHandler(async (req, res) => {
+  const { videoId } = req.query;
+  if (!videoId) throw new ApiError(400, "videoId query is required");
+  const video = await Video.findById(videoId);
+  if (!video || !video.isPublished) throw new ApiError(404, "video not found");
+
+  const likes = await Like.countDocuments({
+    video: video._id,
+  });
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, { likes }, "video likes served"));
+});
+
 export {
   createNewVideo,
   togglePublishStatus,
@@ -301,4 +334,6 @@ export {
   deleteVideo,
   updateVideoDetails,
   getAllPublishedVideos,
+  getVideoComments,
+  getVideoLikes,
 };
