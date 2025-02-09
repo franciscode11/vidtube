@@ -10,7 +10,7 @@ const createPlaylist = asyncHandler(async (req, res) => {
   if (!user) throw new ApiError(401, "Unauthorized");
 
   const { name, description, visibility } = req.body;
-  const { videoId } = req.query; //you can create an empty playlist. So its not strictly required
+  const { videoId } = req.query;
 
   //name
   if (!name?.trim()) throw new ApiError(400, "name is required");
@@ -36,8 +36,9 @@ const createPlaylist = asyncHandler(async (req, res) => {
 
   //video
   let video;
-  if (videoId && videoId?.trim()) {
-    video = await Video.findById(videoId.trim());
+  const trimmedVideoId = videoId?.trim();
+  if (trimmedVideoId) {
+    video = await Video.findById(trimmedVideoId);
     if (!video || !video.isPublished)
       throw new ApiError(404, "video not found");
   }
@@ -69,8 +70,9 @@ const deletePlaylist = asyncHandler(async (req, res) => {
   if (!user) throw new ApiError(401, "Unauthorized");
 
   const { playlistId } = req.params;
-  if (!playlistId?.trim()) throw new ApiError(400, "playlistId is required");
-  const playlist = await Playlist.findById(playlistId.trim());
+  const trimmedPlaylistId = playlistId?.trim();
+  if (!trimmedPlaylistId) throw new ApiError(400, "playlistId is required");
+  const playlist = await Playlist.findById(trimmedPlaylistId);
   if (!playlist) throw new ApiError(404, "playlist not found");
 
   if (playlist.owner.toString() !== user._id.toString()) {
@@ -87,7 +89,7 @@ const deletePlaylist = asyncHandler(async (req, res) => {
       .status(200)
       .json(new ApiResponse(200, {}, `${playlistName} deleted successfully`));
   } catch (error) {
-    throw new ApiError(500, "Error deleting the playlist");
+    throw new ApiError(500, `Error deleting the playlist`);
   }
 });
 
@@ -96,13 +98,16 @@ const addVideoToPlayList = asyncHandler(async (req, res) => {
   if (!user) throw new ApiError(401, "Unauthorized");
 
   const { videoId, playlistId } = req.params;
-  if (!videoId?.trim()) throw new ApiError(400, "videoId parameter is required");
-  const video = await Video.findById(videoId.trim());
+  const trimmedVideoId = videoId?.trim();
+  const trimmedPlaylistId = playlistId?.trim();
+
+  if (!trimmedVideoId) throw new ApiError(400, "videoId is required");
+  const video = await Video.findById(trimmedVideoId);
   if (!video || !video.isPublished) throw new ApiError(404, "video not found");
 
-  if (!playlistId?.trim())
-    throw new ApiError(400, "playlistId parameter is required");
-  const playlist = await Playlist.findById(playlistId.trim());
+  if (!trimmedPlaylistId) throw new ApiError(400, "playlistId is required");
+
+  const playlist = await Playlist.findById(trimmedPlaylistId);
   if (!playlist) throw new ApiError(404, "playlist not found");
 
   if (playlist.owner.toString() !== user._id.toString()) {
@@ -112,9 +117,9 @@ const addVideoToPlayList = asyncHandler(async (req, res) => {
     );
   }
 
-  for (const savedVideos of playlist.videos) {
-    if (savedVideos._id.toString() === video._id.toString()) {
-      throw new ApiError(400, "This video is already on the playlist");
+  for (const savedVideo of playlist.videos) {
+    if (savedVideo._id.toString() === video._id.toString()) {
+      throw new ApiError(409, "This video is already on the playlist");
     }
   }
 
@@ -140,13 +145,15 @@ const removeVideoOfPlaylist = asyncHandler(async (req, res) => {
   if (!user) throw new ApiError(401, "Unauthorized");
 
   const { videoId, playlistId } = req.params;
-  if (!videoId?.trim()) throw new ApiError(400, "videoId parameter is required");
-  const video = await Video.findById(videoId.trim());
+  const trimmedVideoId = videoId?.trim();
+  const trimmedPlaylistId = playlistId?.trim();
+
+  if (!trimmedVideoId) throw new ApiError(400, "videoId is required");
+  const video = await Video.findById(trimmedVideoId);
   if (!video || !video.isPublished) throw new ApiError(404, "video not found");
 
-  if (!playlistId?.trim()) throw new ApiError(400, "playlistId parameter is required");
-  const playlist = await Playlist.findById(playlistId.trim());
-
+  if (!trimmedPlaylistId) throw new ApiError(400, "playlistId is required");
+  const playlist = await Playlist.findById(trimmedPlaylistId);
   if (!playlist) throw new ApiError(404, "playlist not found");
 
   if (playlist.owner.toString() !== user._id.toString()) {
@@ -160,7 +167,7 @@ const removeVideoOfPlaylist = asyncHandler(async (req, res) => {
   for (const savedVideo of playlist.videos) {
     if (savedVideo._id.toString() === video._id.toString()) {
       const newPlaylist = playlist.videos.filter(
-        (elm) => elm._id.toString() !== savedVideo._id.toString()
+        (vid) => vid._id.toString() !== savedVideo._id.toString()
       );
 
       playlist.videos = newPlaylist;
@@ -202,9 +209,10 @@ const getPlaylistVideos = asyncHandler(async (req, res) => {
   if (!user) throw new ApiError(401, "Unauthorized");
 
   const { playlistId } = req.params;
-  if (!playlistId?.trim())
-    throw new ApiError(400, "playlistId parameter is required");
-  const playlist = await Playlist.findById(playlistId.trim());
+  const trimmedPlaylistId = playlistId?.trim();
+
+  if (!trimmedPlaylistId) throw new ApiError(400, "playlistId is required");
+  const playlist = await Playlist.findById(trimmedPlaylistId);
   if (!playlist) throw new ApiError(404, "playlist not found");
 
   if (playlist.visibility === "Private") {
@@ -238,16 +246,12 @@ const getPlaylistVideos = asyncHandler(async (req, res) => {
     },
   ]);
 
-  if (!videos.length) {
-    throw new ApiError(404, "The playlist is empty");
-  }
-
   return res.status(200).json(
     new ApiResponse(
       200,
       {
-        videos: videos[0].videos,
-        totalOfVideos: videos[0].videos.length,
+        videos: videos?.[0]?.videos || [],
+        totalOfVideos: videos?.[0]?.videos?.length || 0,
       },
       "Playlist videos retrieved successfully"
     )

@@ -8,17 +8,13 @@ import { Comment } from "../models/comment.models.js";
 import { Tweet } from "../models/tweet.models.js";
 
 const likeOnVideo = asyncHandler(async (req, res) => {
-  //This endpoint toggles the like status. Press -> likes or removes the like
   const user = await User.findById(req.user?._id);
-  if (!user)
-    throw new ApiError(
-      401,
-      "Unauthorized. Log in or create an account to like a video"
-    );
+  if (!user) throw new ApiError(401, "Unauthorized");
 
-  const { videoId } = req.query;
-  if (!videoId) throw new ApiError(400, "videoId query is required");
-  const video = await Video.findById(videoId);
+  const { videoId } = req.params;
+  const trimmedVideoId = videoId?.trim();
+  if (!trimmedVideoId) throw new ApiError(400, "videoId is required");
+  const video = await Video.findById(trimmedVideoId);
   if (!video || !video.isPublished) throw new ApiError(404, "video not found");
 
   //check if the video is already liked
@@ -57,9 +53,10 @@ const likeOnComment = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user?._id);
   if (!user) throw new ApiError(401, "Unauthorized");
 
-  const { commentId } = req.query;
-  if (!commentId) throw new ApiError(400, "commentId query is required");
-  const comment = await Comment.findById(commentId);
+  const { commentId } = req.params;
+  const trimmedCommentId = commentId?.trim();
+  if (!trimmedCommentId) throw new ApiError(400, "commentId query is required");
+  const comment = await Comment.findById(trimmedCommentId);
   if (!comment) throw new ApiError(404, "comment not found");
 
   const isAlreadyLiked = await Like.findOne({
@@ -99,9 +96,10 @@ const likeOnTweet = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user?._id);
   if (!user) throw new ApiError(401, "Unauthorized");
 
-  const { tweetId } = req.query;
-  if (!tweetId) throw new ApiError(400, "tweetId query is required");
-  const tweet = await Tweet.findById(tweetId);
+  const { tweetId } = req.params;
+  const trimmedTweetId = tweetId?.trim();
+  if (!trimmedTweetId) throw new ApiError(400, "tweetId query is required");
+  const tweet = await Tweet.findById(trimmedTweetId);
   if (!tweet) throw new ApiError(404, "tweet not found");
 
   const isAlreadyLiked = await Like.findOne({

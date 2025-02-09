@@ -13,7 +13,7 @@ const router = Router();
 //ROUTES
 //not-secure-routes(free-access)
 router.route("/get-all-tweets").get(getAllTweets);
-router.route("/get-likes").get(getTweetLikes);
+router.route("/get-likes/:tweetId").get(getTweetLikes);
 
 //secure-routes(need authentication)
 router.route("/create").post(verifyJWT, createTweet);
