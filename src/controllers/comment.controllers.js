@@ -10,33 +10,30 @@ const createComment = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user?._id);
   if (!user) throw new ApiError(401, "Unauthorized");
 
-  const { videoId } = req.query;
-  if (!videoId || videoId === "")
-    throw new ApiError(400, "videoId is required");
+  const { videoId } = req.params;
+  if (!videoId?.trim()) throw new ApiError(400, "videoId is required");
 
-  const video = await Video.findById(videoId);
+  const video = await Video.findById(videoId?.trim());
   if (!video || !video.isPublished) throw new ApiError(404, "Video not found");
 
   const { content } = req.body;
-  if (!content)
+  if (!content?.trim())
     throw new ApiError(400, "Comment is empty. Write something to comment");
 
-  if (content.length > 500)
+  if (content?.trim().length > 500)
     throw new ApiError(400, "Comments cant be longer than 500 chars");
 
   try {
     const comment = await Comment.create({
       owner: user._id,
       video: video._id,
-      content: content,
+      content: content.trim(),
     });
-    console.log("Comment created successfully");
 
     return res
       .status(200)
       .json(new ApiResponse(200, { comment }, "Comment created successfully"));
   } catch (error) {
-    console.log("Error creating the comment");
     throw new ApiError(500, "Error creating the comment");
   }
 });
@@ -45,15 +42,15 @@ const deleteComment = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user?._id);
   if (!user) throw new ApiError(401, "Unauthorized");
 
-  const { videoId } = req.query;
-  if (!videoId) throw new ApiError(400, "videoId query is required");
-  const video = await Video.findById(videoId);
+  const { videoId } = req.params;
+  if (!videoId?.trim()) throw new ApiError(400, "videoId is required");
+  const video = await Video.findById(videoId?.trim());
   if (!video || !video.isPublished) throw new ApiError(404, "video not found");
 
-  const { commentId } = req.query;
-  if (!commentId) throw new ApiError(400, "commentId query is required");
+  const { commentId } = req.params;
+  if (!commentId?.trim()) throw new ApiError(400, "commentId is required");
 
-  const comment = await Comment.findById(commentId);
+  const comment = await Comment.findById(commentId?.trim());
   if (!comment) throw new ApiError(404, "Comment not found");
 
   if (comment.owner.toString() !== user._id.toString()) {
@@ -74,14 +71,16 @@ const editComment = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user?._id);
   if (!user) throw new ApiError(400, "Unauthorized");
 
-  const { videoId, commentId } = req.query;
-  if (!videoId) throw new ApiError(400, "videoId query is required");
-  if (!commentId) throw new ApiError(400, "commentId query is required");
+  const { videoId, commentId } = req.params;
+  const trimmedVideoId = videoId?.trim();
+  const trimmedCommentId = commentId?.trim();
+  if (!trimmedVideoId) throw new ApiError(400, "videoId is required");
+  if (!trimmedCommentId) throw new ApiError(400, "commentId is required");
 
-  const video = await Video.findById(videoId);
+  const video = await Video.findById(trimmedVideoId);
   if (!video || !video.isPublished) throw new ApiError(404, "video not found");
 
-  const comment = await Comment.findById(commentId);
+  const comment = await Comment.findById(trimmedCommentId);
   if (!comment) throw new ApiError(404, "comment not found");
 
   if (comment.owner.toString() !== user._id.toString()) {
@@ -89,14 +88,15 @@ const editComment = asyncHandler(async (req, res) => {
   }
 
   const { content } = req.body;
+  const trimmedContent = content?.trim();
 
-  if (!content)
+  if (!trimmedContent)
     throw new ApiError(400, "Comment is empty. Write something to comment");
 
-  if (content.trim().length > 500)
-    throw new ApiError(400, "Comments cant be longer than 500 chars");
+  if (trimmedContent.length > 500)
+    throw new ApiError(400, "Comments cant be longer than 500 characters");
 
-  if (content.trim() === comment.content.trim())
+  if (trimmedContent === comment.content.trim())
     throw new ApiError(400, "Nothing changed");
 
   try {
@@ -104,7 +104,7 @@ const editComment = asyncHandler(async (req, res) => {
       comment._id,
       {
         $set: {
-          content: content.trim(),
+          content: trimmedContent,
         },
       },
       {
@@ -121,18 +121,21 @@ const getCommentById = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user?._id);
   if (!user) throw new ApiError(401, "Unauthorized");
 
-  const { commentId } = req.query;
-  if (!commentId) throw new ApiError(400, "commentId query is required");
-  const comment = await Comment.findById(commentId);
+  const { commentId } = req.params;
+  const trimmedCommentId = commentId?.trim();
+
+  if (!trimmedCommentId) throw new ApiError(400, "commentId is required");
+  const comment = await Comment.findById(trimmedCommentId);
   if (!comment) throw new ApiError(404, "comment not found");
 
   if (user._id.toString() !== comment.owner.toString()) {
     throw new ApiError(401, "Unauthorized");
   }
 
-  const { videoId } = req.query;
-  if (!videoId) throw new ApiError(400, "videoId query is required");
-  const video = await Video.findById(videoId);
+  const { videoId } = req.params;
+  const trimmedVideoId = videoId?.trim();
+  if (!trimmedVideoId) throw new ApiError(400, "videoId is required");
+  const video = await Video.findById(trimmedVideoId);
   if (!video || !video.isPublished)
     throw new ApiError(
       404,
@@ -147,9 +150,11 @@ const getCommentById = asyncHandler(async (req, res) => {
 });
 
 const getCommentLikes = asyncHandler(async (req, res) => {
-  const { commentId } = req.query;
-  if (!commentId) throw new ApiError(400, "commentId query is required");
-  const comment = await Comment.findById(commentId);
+  const { commentId } = req.params;
+  const trimmedCommentId = commentId?.trim();
+
+  if (!trimmedCommentId) throw new ApiError(400, "commentId is required");
+  const comment = await Comment.findById(trimmedCommentId);
   if (!comment) throw new ApiError(404, "comment not found");
 
   const likes = await Like.countDocuments({

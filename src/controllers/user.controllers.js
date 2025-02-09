@@ -33,6 +33,8 @@ const singUpUser = asyncHandler(async (req, res) => {
   if (
     [fullname, username, email, password].some((field) => field?.trim() === "")
   ) {
+    if (avatarLocalPath) fs.unlinkSync(avatarLocalPath);
+    if (coverImageLocalPath) fs.unlinkSync(coverImageLocalPath);
     throw new ApiError(400, "All fields are required");
   }
 
@@ -84,20 +86,12 @@ const singUpUser = asyncHandler(async (req, res) => {
       "image"
     );
     if (!coverImage) {
-      const response = await deleteOfCloudinary(avatar.public_id);
-      if (!response) {
-        console.log(
-          "Error deleting avatar image of cloudinary",
-          avatar.public_id
-        );
-      } else {
-        console.log("avatar image deleted from cloudinary", response);
-      }
+      await deleteOfCloudinary(avatar.public_id);
       throw new ApiError(500, "Error uploading coverImage to cloudinary");
     }
   }
 
-  //Create user in db
+  //Create user
   try {
     const newUser = await User.create({
       fullname,
@@ -113,21 +107,8 @@ const singUpUser = asyncHandler(async (req, res) => {
     );
 
     if (!createdUser) {
-      const avatarResponse = await deleteOfCloudinary(avatar.public_id);
-      if (!avatarResponse)
-        console.log(
-          `Error deleting avatar with publicId: ${avatar.public_id} from Cloudinary`
-        );
-
-      let coverImageResponse;
-      if (coverImage) {
-        coverImageResponse = await deleteOfCloudinary(coverImage.public_id);
-      }
-
-      if (!coverImageResponse)
-        console.log(
-          `Error deleting coverImage with publicId: ${coverImage.public_id} from Cloudinary`
-        );
+      await deleteOfCloudinary(avatar.public_id);
+      if (coverImage) await deleteOfCloudinary(coverImage.public_id);
 
       throw new ApiError(
         500,
@@ -135,60 +116,40 @@ const singUpUser = asyncHandler(async (req, res) => {
       );
     }
 
-    console.log("User registered successfully", newUser);
     return res
       .status(200)
       .json(new ApiResponse(200, createdUser, "User registered succesfully"));
   } catch (error) {
-    const avatarResponse = await deleteOfCloudinary(avatar.public_id);
-    if (!avatarResponse)
-      console.log(
-        `Error deleting avatar with publicId: ${avatar.public_id} from Cloudinary`
-      );
-
-    let coverImageResponse;
-    if (coverImage) {
-      coverImageResponse = await deleteOfCloudinary(coverImage.public_id);
-    }
-
-    if (!coverImageResponse)
-      console.log(
-        `Error deleting coverImage with publicId: ${coverImage.public_id} from Cloudinary`
-      );
+    await deleteOfCloudinary(avatar.public_id);
+    if (coverImage) await deleteOfCloudinary(coverImage.public_id);
 
     throw new ApiError(500, "Something went wrong while registering the user");
   }
 });
 
 const loginUser = asyncHandler(async (req, res) => {
-  //Get user inputs
   const { emailOrUsername, password } = req.body;
 
   if (!emailOrUsername) {
     throw new ApiError(400, "Email or username field is required");
   }
-  if (!password) {
-    throw new ApiError(400, "Password field is required");
-  }
+
+  if (!password) throw new ApiError(400, "Password field is required");
 
   // Convert emailOrUsername to lowercase
   const emailOrUsernameLower = emailOrUsername.toLowerCase();
 
-  //User exists?
+  //check if user exists
   const user = await User.findOne({
     $or: [{ email: emailOrUsernameLower }, { username: emailOrUsernameLower }],
   });
 
-  if (!user) {
-    throw new ApiError(404, "User not found");
-  }
+  if (!user) throw new ApiError(404, "User not found");
 
   //Check the password
   const isPasswordCorrect = await user.isPasswordCorrect(password);
 
-  if (!isPasswordCorrect) {
-    throw new ApiError(401, "Invalid user credentials");
-  }
+  if (!isPasswordCorrect) throw new ApiError(401, "Invalid user credentials");
 
   //Generate Access and Refresh tokens
   const { accessToken, refreshToken } = await generateAccessAndRefreshTokens(
@@ -211,7 +172,7 @@ const loginUser = asyncHandler(async (req, res) => {
     .json(
       new ApiResponse(
         200,
-        { user: loggedInUser, accessToken, refreshToken },
+        { user: loggedInUser },
         "User logged in successfully"
       )
     );
@@ -252,13 +213,7 @@ const refreshUserTokens = asyncHandler(async (req, res) => {
       .status(200)
       .cookie("accessToken", accessToken, options)
       .cookie("refreshToken", newRefreshToken, options)
-      .json(
-        new ApiResponse(
-          200,
-          { accessToken, refreshToken: newRefreshToken },
-          "User tokens refreshed successfully!"
-        )
-      );
+      .json(new ApiResponse(200, {}, "User tokens refreshed successfully!"));
   } catch (error) {
     throw new ApiError(500, "Invalid refreshToken");
   }
@@ -267,7 +222,6 @@ const refreshUserTokens = asyncHandler(async (req, res) => {
 //All the controllers below work with verifyJWT middleware
 
 const logOutUser = asyncHandler(async (req, res) => {
-  console.log(req.user?.username);
   await User.findByIdAndUpdate(
     req.user?._id,
     {
@@ -293,41 +247,37 @@ const logOutUser = asyncHandler(async (req, res) => {
 });
 
 const changeCurrentPassword = asyncHandler(async (req, res) => {
-  console.log("Current User: ", req.user?.username);
-  const { currentPsw, newPsw } = req.body;
+  const user = await User.findById(req.user?._id);
+  if (!user) throw new ApiError(401, "Unauthorized");
 
-  if (!currentPsw && !newPsw) {
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword && !newPassword) {
     throw new ApiError(400, "All fields are required");
   }
 
-  if (!currentPsw) {
-    throw new ApiError(400, "Current password field is required");
+  if (!currentPassword) {
+    throw new ApiError(400, "currentPassword field is required");
   }
 
-  if (!newPsw) {
-    throw new ApiError(400, "New password field is required");
+  if (!newPassword) {
+    throw new ApiError(400, "newPassword field is required");
   }
 
-  const user = await User.findById(req.user?._id);
-
-  if (!user) {
-    throw new ApiError(401, "Unauthorized");
-  }
-
-  const isPasswordCorrect = await user.isPasswordCorrect(currentPsw);
+  const isPasswordCorrect = await user.isPasswordCorrect(currentPassword);
 
   if (!isPasswordCorrect) {
     throw new ApiError(400, "Incorrect password. Try again");
   }
 
-  if (currentPsw === newPsw) {
+  if (currentPassword === newPassword) {
     throw new ApiError(
       400,
       "The new password must be different from the current one"
     );
   }
 
-  user.password = newPsw;
+  user.password = newPassword;
   await user.save({ validateBeforeSave: false });
 
   return res
@@ -342,31 +292,26 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 });
 
 const updateAccountDetails = asyncHandler(async (req, res) => {
-  //This is like the ig page, when you modified a value, you have as a reference the current value, if you dont change nothing, you cant update
   const { fullname, email } = req.body;
-
-  //Check empty fields
 
   if (!fullname || !email) {
     throw new ApiError(400, "Fullname and Email fields are required");
   }
 
-  if (fullname.trim() === "" && email.trim() === "") {
+  if (fullname?.trim() === "" && email?.trim() === "") {
     throw new ApiError(400, "Fullname and Email fields cant be empty");
   }
 
-  if (fullname.trim() === "") {
+  if (fullname?.trim() === "") {
     throw new ApiError(400, "Fullname field cant be empty");
   }
 
-  if (email.trim() === "") {
+  if (email?.trim() === "") {
     throw new ApiError(400, "Email field cant be empty");
   }
 
   const user = await User.findById(req.user?._id);
-  if (!user) {
-    throw new ApiError(401, "Unauthorized");
-  }
+  if (!user) throw new ApiError(401, "Unauthorized");
 
   //check changes
   if (
@@ -386,24 +331,18 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
       /^[a-zA-Z0-9._%+-]+@((gmail|yahoo|outlook)\.[a-z]{2,3}(\.[a-z]{2})?)$/;
 
     if (!emailRegex.test(email)) {
-      throw new ApiError(
-        400,
-        "The email format is incorrect. It must follow this pattern: example@domain.com"
-      );
+      throw new ApiError(400, "The email format is incorrect");
     }
 
-    //check if email exists
+    //check if email is avaible
     const emailExists = await User.findOne({
       email: email.toLowerCase().trim(),
     });
-    if (emailExists) {
-      throw new ApiError(400, "This email is already in use");
-    }
-    //update the email field of the user in db
+    if (emailExists) throw new ApiError(400, "This email is already in use");
+
     user.email = email.toLowerCase().trim();
   }
 
-  //save all changes
   await user.save({ validateBeforeSave: false });
   return res.status(200).json(
     new ApiResponse(
@@ -420,19 +359,13 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 });
 
 const updateUsername = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user?._id);
+  if (!user) throw new ApiError(401, "Unauthorized");
+
   const { username } = req.body;
 
-  //Check field
-  if (!username) {
-    throw new ApiError(400, "Username field is required");
-  }
+  if (!username) throw new ApiError(400, "Username field is required");
 
-  const user = await User.findById(req.user?._id);
-  if (!user) {
-    throw new ApiError(401, "Unauthorized");
-  }
-
-  //Check changes
   if (username.toLowerCase().trim() === user.username) {
     throw new ApiError(400, "Nothing has changed");
   }
@@ -465,10 +398,7 @@ const updateUsername = asyncHandler(async (req, res) => {
 const updateUserAvatar = asyncHandler(async (req, res) => {
   const newAvatarLocalPath = req.file?.path;
   if (!newAvatarLocalPath) {
-    throw new ApiError(
-      400,
-      "You have to upload a new image to update this field"
-    );
+    throw new ApiError(400, "You have to upload an image to update this field");
   }
 
   const user = await User.findById(req.user?._id);
@@ -477,6 +407,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
     throw new ApiError(401, "Unauthorized");
   }
 
+  //find public_id
   const url = user.avatar;
   const regex = /\/v\d+\/([^/]+\/[^/]+)\.[a-z]+$/;
   const match = url.match(regex);
@@ -484,22 +415,17 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
 
   if (publicId === null) {
     if (newAvatarLocalPath) fs.unlinkSync(newAvatarLocalPath);
-    throw new ApiError(500, "Image PublicId not found");
+    throw new ApiError(500, "Error getting the old image publicId");
   }
 
   const response = await deleteOfCloudinary(publicId);
 
   if (!response) {
     if (newAvatarLocalPath) fs.unlinkSync(newAvatarLocalPath);
-    console.log(
-      `Error deleting the old avatar image with publicId: ${publicId} of cloudinary`
-    );
     throw new ApiError(
       500,
       "Error deleting the old avatar image of Cloudinary"
     );
-  } else {
-    console.log("Old avatar image deleted of Cloudinary", response);
   }
 
   const newAvatarImage = await uploadToCloudinary(
@@ -513,31 +439,28 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
       500,
       "Error uploading the new avatar image to cloudinary"
     );
-  } else {
-    console.log("New avatar image uploaded successfully on Cloudinary");
   }
 
   user.avatar = newAvatarImage.url;
   await user.save({ validateBeforeSave: false });
 
   return res.status(200).json(
-    200,
-    {
-      user: {
-        avatar: user.avatar,
+    new ApiResponse(
+      200,
+      {
+        user: {
+          avatar: user.avatar,
+        },
       },
-    },
-    "Avatar image updated successfully"
+      "Avatar image updated successfully"
+    )
   );
 });
 
 const uploadUserCoverImage = asyncHandler(async (req, res) => {
   const newCoverImageLocalPath = req.file?.path;
   if (!newCoverImageLocalPath) {
-    throw new ApiError(
-      400,
-      "You have to upload a new image to update this field"
-    );
+    throw new ApiError(400, "You have to upload an image to update this field");
   }
 
   const user = await User.findById(req.user?._id);
@@ -546,6 +469,7 @@ const uploadUserCoverImage = asyncHandler(async (req, res) => {
     throw new ApiError(401, "Unauthorized");
   }
 
+  //delete the old coverImage
   if (user.coverImage !== "") {
     const url = user.coverImage;
     const regex = /\/v\d+\/([^/]+\/[^/]+)\.[a-z]+$/;
@@ -560,31 +484,22 @@ const uploadUserCoverImage = asyncHandler(async (req, res) => {
     const response = await deleteOfCloudinary(publicId);
     if (!response) {
       if (newCoverImageLocalPath) fs.unlinkSync(newCoverImageLocalPath);
-
-      console.log(
-        `Error deleting the old coverImage with publicId: ${publicId} of Cloudinary`
-      );
-
       throw new ApiError(
         500,
         `Error deleting the old coverImage of Cloudinary`
       );
-    } else {
-      console.log("Old coverImage deleted of cloudinary", response);
     }
   }
 
-  //upload new image to cloudinary
+  //upload new coverImage to cloudinary
   const newCoverImage = await uploadToCloudinary(
     newCoverImageLocalPath,
     process.env.CLOUDINARY_COVERIMAGE_FOLDER_NAME,
     "image"
   );
+
   if (!newCoverImage) {
-    console.log("Error uploading the new coverImage on Cloudinary");
     throw new ApiError(500, "Error uploading new coverImage on Cloudinary");
-  } else {
-    console.log("New coverImage uploaded on Cloudinary successfully");
   }
 
   user.coverImage = newCoverImage.url;
@@ -740,4 +655,5 @@ export {
   updateUsername,
   updateUserAvatar,
   uploadUserCoverImage,
+  getUserChannelProfile,
 };

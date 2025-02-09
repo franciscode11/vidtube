@@ -78,7 +78,7 @@ const deleteTweet = asyncHandler(async (req, res) => {
 });
 
 const getTweetLikes = asyncHandler(async (req, res) => {
-  const { tweetId } = req.query;
+  const { tweetId } = req.params;
   if (!tweetId) throw new ApiError(400, "tweetId query is required");
   const tweet = await Tweet.findById(tweetId);
   if (!tweet) throw new ApiError(404, "tweet not found");

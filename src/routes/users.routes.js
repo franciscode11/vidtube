@@ -15,6 +15,7 @@ import {
   updateUsername,
   updateUserAvatar,
   uploadUserCoverImage,
+  getUserChannelProfile,
 } from "../controllers/user.controllers.js";
 
 import { verifyJWT } from "../middlewares/auth.middlewares.js";
@@ -39,6 +40,8 @@ router.route("/singup").post(
 router.route("/login").post(loginUser);
 
 router.route("/refresh-tokens").post(refreshUserTokens);
+
+router.route("/channel/:username").get(getUserChannelProfile);
 
 //Secure routes:
 router.route("/logout").post(verifyJWT, logOutUser);
